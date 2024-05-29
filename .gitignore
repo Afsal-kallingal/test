@@ -1,0 +1,13 @@
+# **/migrations
+# */migrations
+# */migrations/0*
+# /!_init__.py
+*/__pycache__
+**/__pycache__
+# /db.sqlite3
+.env
+/.env
+/media
+/swagger.json
+/.env_example
+# settings.py
