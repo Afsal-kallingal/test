@@ -3,7 +3,7 @@ from django.urls import path
 from rest_framework.routers import DefaultRouter, SimpleRouter
 
 from apps.user_account.api_v1.views import ( UserViewSet ,
-                                            # registration_view,
+                                            registration_view,
                                             # registration_email,
                                             # registration_phone,
                                             # verify_email,
@@ -43,7 +43,7 @@ router.register("login-history",LoginHistoryViewSet)
 urlpatterns = [
     # path('login-view/',login_view ,name ='login-view'),
     # path('login-otp-view/',login_otp_view ,name ='login-otp-view'),
-    # path('register/',registration_view,name='register'),
+    path('register/',registration_view,name='register'),
 
     # path('register-phone/',registration_phone,name='register_phone'),
     # path('verify-phone/',verify_phone,name='verify_phone'),

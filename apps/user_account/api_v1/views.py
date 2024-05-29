@@ -7,7 +7,7 @@ from apps.user_account.models import User ,LoginHistory
 from rest_framework.decorators import action
 from django.contrib.auth import authenticate, login
 from rest_framework.permissions import AllowAny,IsAuthenticated
-from apps.user_account.functions import validate_email,IsAdmin,send_phone_otp,send_email_otp,validate_phone,random_password,save_login_history,fetch_user_by_phone,update_user_token,register_user_by_phone,set_user_token,delete_user_token
+from apps.user_account.functions import validate_username,validate_email,IsAdmin,send_phone_otp,send_email_otp,validate_phone,random_password,save_login_history,fetch_user_by_phone,update_user_token,register_user_by_phone,set_user_token,delete_user_token
 # from rest_framework.authentication import SessionAuthentication
 from django.contrib.sessions.models import Session
 from rest_framework.viewsets import  ModelViewSet
@@ -36,7 +36,7 @@ User = get_user_model()
 
 
 class UserViewSet(BaseModelViewSet):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdmin]
     serializer_class = UserSerializer
     queryset = User.objects.all()
     lookup_field = "username"
@@ -57,82 +57,144 @@ class UserViewSet(BaseModelViewSet):
             permission_classes = [IsAuthenticated]
         return [permission() for permission in permission_classes]
     
-    # def get_permissions(self):
-    #     if self.action in ['destroy', 'update']:
-    #         permission_classes = [IsAdmin]
-    #     else:
-    #         permission_classes = [IsAuthenticated]
-    #     return [permission() for permission in permission_classes]
 
 
-    # def get_queryset(self, *args, **kwargs):
-    #     assert isinstance(self.request.user.id, int)
-    #     return self.queryset.filter(id=self.request.user.id)
+@csrf_exempt
+@api_view(['POST',])
+@permission_classes((AllowAny, ))
+@parser_classes([JSONParser,FormParser, MultiPartParser,FileUploadParser])
+def registration_view(request):
+    status_code=status.HTTP_400_BAD_REQUEST
+    if request.method == 'POST':
+        data = {}
+        email = request.data.get('email', '0').lower() 
+        # if validate_email(email) != None:
+        #     data['error_message'] = 'That email is already in use.'
+        #     data['response'] = 'Error'
+        #     return Response(data)
 
-    # @action(detail=False)
-    # def me(self, request):
-    #     serializer = UserSerializer(request.user, context={"request": request})
-    #     return Response(status=status.HTTP_200_OK, data=serializer.data)
-    
-    # # def create(self, request, *args, **kwargs):
-    # #     serializer = self.get_serializer(data=request.data)
-    # #     serializer.is_valid(raise_exception=True)
-    # #     self.perform_create(serializer)
-    # #     headers = self.get_success_headers(serializer.data)
-    # #     return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+        # username = request.data.get('username', '0')
+        # if validate_username(username) != None:
+        #     data['error_message'] = 'That username is already in use.'
+        #     data['response'] = 'Error'  
+        #     return Response(data)
+        request_data = request.data.copy()
+        serializer = UserSerializer(data=request_data)
+        if serializer.is_valid():
+            user = serializer.save()
+            data['response'] = 'successfully registered new user.'
+            data['email'] = user.email
+            user.save()
+            data['username'] = user.username
+            try:
+                token = Token.objects.get(user=user).key
+            except Token.DoesNotExist:
+                token = Token.objects.create(user=user).key
+            save_login_history(request,user,"registerd by admin")
+            data['token'] = token
+            status_code=status.HTTP_200_OK
+        else:
+            data = serializer.errors
+        return Response(data,status=status_code)
 
-    # def perform_create(self, serializer):
-    #     serializer.save()
 
 
 
 
 
-
-
-
-# @csrf_exempt
+# >>>>> Register with phone number <<<<<<<<<
+# # >>>>> Register with phone number <<<<<<<<<
 # @api_view(['POST',])
-# @permission_classes((IsAdmin, ))
-# @parser_classes([JSONParser,FormParser, MultiPartParser,FileUploadParser])
-# def registration_view(request):
-#     status_code=status.HTTP_400_BAD_REQUEST
+# @permission_classes((AllowAny, ))
+# @authentication_classes([SessionAuthentication])
+# @parser_classes([JSONParser, FormParser, MultiPartParser, FileUploadParser])
+# def registration_phone(request):
+#     status_code = status.HTTP_400_BAD_REQUEST
 #     if request.method == 'POST':
 #         data = {}
-#         email = request.data.get('email', '0').lower() 
-#         if validate_email(email) != None:
-#             data['error_message'] = 'That email is already in use.'
-#             data['response'] = 'Error'
-#             return Response(data)
-
-#         username = request.data.get('username', '0')
-#         if validate_username(username) != None:
-#             data['error_message'] = 'That username is already in use.'
-#             data['response'] = 'Error'  
-#             return Response(data)
+#         phone = request.data.get('phone', '0')
 #         request_data = request.data.copy()
+#         serializer = UserSerializer(data=request_data)
+#         request_data['password'] = request_data['password'] if 'password' in request_data else random_password(16)
+
+#         if serializer.is_valid():
+#             status_code = status.HTTP_200_OK
+#             data = serializer.data
+#             if(validate_phone(phone)==None):
+#                 data['status'] = 'success'
+#                 data['message'] = 'User registration successful. OTP sent to the provided phone number.'
+#                 otp = randint(1000, 9999)
+#                 my_session = SessionStore()
+#                 my_session['phone'] = phone
+#                 my_session['email'] = request_data['email'] if 'email' in request_data else None
+#                 my_session['full_name'] = request_data['full_name'] if 'full_name' in request_data else None
+#                 my_session['dob'] = request_data['dob'] if 'dob' in request_data else None
+#                 my_session['password'] = request_data['password']
+#                 my_session['otp'] = otp
+#                 my_session['otp_count'] = 5
+#                 my_session.create()
+#                 data['session_key'] = my_session.session_key
+#                 send_phone_otp(phone,otp)
+#                 my_session.save()
+#             else:
+#                 data['status'] = 'error'
+#                 data['message'] = 'phone number already exists !'
+#                 status_code = status.HTTP_400_BAD_REQUEST
+#         else:
+#             data['status'] = 'error'
+#             data['message'] = 'User registration failed.'
+#             data['errors'] = serializer.errors
+#         return Response(data, status=status_code)
+#     else:
+#         return Response({}, status=status.HTTP_400_BAD_REQUEST)
+
+
+# @api_view(['POST'])
+# @permission_classes((AllowAny, ))
+# @parser_classes([JSONParser,FormParser, MultiPartParser,FileUploadParser])
+# def verify_phone(request):
+#     session_key = request.data.get('session_key')
+#     my_session = SessionStore(session_key=session_key)
+#     data = {}
+#     otp = int(request.data.get('otp'))
+#     if("otp" in my_session and "otp_count" in my_session) and otp == my_session['otp']  and (my_session['otp_count'] > 0):
+#         request_data = request.data.copy()
+#         request_data['phone'] = my_session['phone']
+#         request_data['password'] = my_session['password']
 #         serializer = UserSerializer(data=request_data)
 #         if serializer.is_valid():
 #             user = serializer.save()
+#             user.phone_verified=True
+#             user.save()
 #             data['response'] = 'successfully registered new user.'
 #             data['email'] = user.email
-#             user.email_verified=True
-
-#             user.phone_verified=True
-#             user.is_admin=True
-#             user.is_superuser=True
-#             user.save()
-#             data['username'] = user.username
+#             data['pk'] = user.pk
 #             try:
 #                 token = Token.objects.get(user=user).key
 #             except Token.DoesNotExist:
 #                 token = Token.objects.create(user=user).key
-#             save_login_history(request,user,"registerd by admin")
+#             save_login_history(request,user,"registered with phone")
+#             my_session.delete()    
 #             data['token'] = token
+#             data['response'] = "Phone Number Verfied Successfully"
 #             status_code=status.HTTP_200_OK
 #         else:
 #             data = serializer.errors
+#             status_code=status.HTTP_400_BAD_REQUEST
 #         return Response(data,status=status_code)
+#     else:
+#         if("otp_count" in my_session and my_session['otp_count'] > 0):
+#             my_session['otp_count'] -= 1
+#             data['error_message'] = "invalid OTP"
+#         else:
+#             my_session.delete()
+#             data['error_message'] = "Limit Exceeded, Register again"
+
+#         status_code=status.HTTP_400_BAD_REQUEST
+#     return Response(data,status=status_code)
+# >>>>> Register with phone number <<<<<<<<<
+# >>>>> Register with phone number <<<<<<<<<
+
 
 
 
